@@ -9,7 +9,7 @@ from frame import Frame
 
 class Util(object):
     def __init__(self):
-        self.gammaShape = 0.0
+        self.gammaShape = 10.0
         self.gammaScale = 2.0
         self.eip_prior = 0.000000001
         self.eip_post = 0.0001
@@ -22,17 +22,8 @@ class Util(object):
         self.max_obj_update = 200
         self.alpha_sample_size = 300
         self.alpha_sample = True
-
-    @staticmethod
-    def cov_mean(self, frames):
-        #TODO: sigman doesn't seem to be used
-        sigman = 0.2
-        combinedframes = Frame.combined_frame(frames)
-        ux = np.mean(combinedframes.vx)
-        uy = np.mean(combinedframes.vy)
-        sigmax = np.std(combinedframes.vx)
-        sigmay = np.std(combinedframes.vy)
-        return ux, uy, sigmax, sigmay, sigman
+        self.sigman = 0.2
+        self.alpha_max = 20
 
     def draw_w(self):
         wx = np.random.gamma(self.gammaShape, self.gammaScale)
@@ -41,10 +32,35 @@ class Util(object):
         pwy = gamma.pdf(wy, a=self.gammaShape, scale=self.gammaScale)
         return wx, wy, pwx, pwy
 
+    def cov_mean(self, frames):
+        #TODO: sigman doesn't seem to be used
+        combinedframes = self.combined_frame(frames)
+        ux = np.mean(combinedframes.vx)
+        uy = np.mean(combinedframes.vy)
+        sigmax = np.std(combinedframes.vx)
+        sigmay = np.std(combinedframes.vy)
+        return ux, uy, sigmax, sigmay, self.sigman
+
     @staticmethod
-    def z2partition(self, z, k):
+    def z2partition(z, k):
         # convert assignment z to partition
-        partition = np.zeros((k, 1))
+        # partition = np.zeros((k, 1))
+        if len(z) >= 120:
+            pass
+        partition = [0] * k
         for i in range(len(z)):
             partition[z[i]] += 1
         return partition
+
+    @staticmethod
+    def combined_frame(frames):
+        x_ink = y_ink = vx_ink = vy_ink = []
+        if len(frames) == 1:
+            return frames[0]
+        else:
+            for i in range(len(frames)):
+                x_ink = np.concatenate((x_ink, frames[i].x), axis=0)
+                y_ink = np.concatenate((y_ink, frames[i].y), axis=0)
+                vx_ink = np.concatenate((vx_ink, frames[i].vx), axis=0)
+                vy_ink = np.concatenate((vy_ink, frames[i].vy), axis=0)
+            return Frame(x_ink, y_ink, vx_ink, vy_ink)
