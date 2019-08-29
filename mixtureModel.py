@@ -12,6 +12,7 @@ from functools import partial
 from frame import Frame
 from sklearn.neighbors import NearestNeighbors
 from scipy.special import gamma, loggamma
+from scipy.stats import invgamma
 
 
 class MixtureModel(object):
@@ -35,8 +36,11 @@ class MixtureModel(object):
         self.assignmentIteration = 0
         self.parameterIteration = 0
         # draw patterns one by one
-        # TODO gamma initialization
-        self.alpha = np.random.gamma(1.0, 1.0)
+        if self.Util.alpha_initial_sample:
+            # concentration parameter prior: inverse gamma function
+            self.alpha = invgamma.rvs(a=1, size=1)
+        else:
+            self.alpha = self.Util.alpha_initial
         self.n = 1
         self.K = 1
         self.z.append(0)
@@ -74,11 +78,19 @@ class MixtureModel(object):
         self.draw_alpha()
         self.parameterIteration += 1
 
+    def update_one_pattern(self, frame_ink_k, b_prep_k):
+        frame_ink = frame_ink_k
+        if len(frame_ink.x) > self.Util.max_obj_update:
+            idx = np.random.randint(len(frame_ink.x), size=self.Util.max_obj_update)
+            frame_ink = Frame(frame_ink.x[idx], frame_ink.y[idx], frame_ink.vx[idx], frame_ink.vy[idx])
+        b_prep_k = b_prep_k.update_para(frame_ink)
+        return b_prep_k
+
     def draw_alpha(self):
         # note that this part contains a lot of pre-defined parameters.
+        logp = []
         pool = mp.Pool(mp.cpu_count())
-        # TODO check why there is 20 times here
-        candidate = np.linspace(0.1, self.Util.alpha_max, self.Util.alpha_sample_size)
+        candidate = np.linspace(self.Util.alpha_min, self.Util.alpha_max, self.Util.alpha_sample_size)
         logp = pool.map(self.p_alpha, (c for c in candidate))
         pool.close()
         logp = logp - np.max(logp) # normalization
@@ -88,23 +100,19 @@ class MixtureModel(object):
         else:
             idx = np.argmax(logp)
             self.alpha = candidate[idx]
+            print('max idx', idx)
+            print('alpha', self.alpha)
 
     def p_alpha(self, alpha):
-        return (self.K - 1.5) * alpha - 0.5 / alpha + np.log(gamma(alpha)/gamma(self.n+alpha))
-
-    def update_one_pattern(self, frame_ink_k, b_prep_k):
-        frame_ink = frame_ink_k
-        if len(frame_ink.x) > self.Util.max_obj_update:
-            idx = np.random.randint(len(frame_ink.x), self.Util.max_obj_update)
-            frame_ink = Frame(frame_ink.x[idx], frame_ink.y[idx], frame_ink.vx[idx], frame_ink.vy[idx])
-        b_prep_k = b_prep_k.update_para(frame_ink)
-        return b_prep_k
+        # log of the parameter posterior
+        # NOte that the last term is not related to alpha, may help a bit to avoid inf
+        p = np.log(alpha)*(self.K - 1.5) - 0.5 / alpha + np.log(gamma(alpha)/gamma(self.n+alpha)) \
+            + np.sum(np.log(gamma(np.array(self.partition))))
+        return p
 
     def update_all_assignment(self):
-        # TODO check parallel process, the same pool will this affect the final result?
-        pool = mp.Pool(mp.cpu_count())
-        pool.map(self.update_assignment, (i for i in range(self.n)))
-        pool.close()
+        for i in range(self.n):
+            self.update_assignment(i)
         self.assignmentIteration += 1
 
     def update_assignment(self, i):
@@ -130,26 +138,27 @@ class MixtureModel(object):
             # unlike the existing motion pattern, the parameter of
             # the new patterns are updated once generated
             self.b.append(new_pattern.update_para(self.frames[i]))
-            print(len(self.b))
-            print(self.b[1].ux)
+            # print(len(self.b))
+            # print(self.b[1].ux)
             self.K += 1
 
         # if b(zi_old) is empty after the frame_i left
         all_z = set(self.z)
         if not zi_old in all_z:
             # TODO check whether this will happen
+            print('***********************************')
             print('delete pattern: ', zi_old)
+            print('***********************************')
             # if is empty, delete the pattern
             # TODO check how the pattern will be refilled
-            self.b[zi_old] = []
-            idx = self.z >= zi_old
-            self.z[idx] -= 1
+            del self.b[zi_old]
+            other_z = np.argwhere(np.array(self.z) > zi_old).astype(int)
+            for m in range(len(other_z)):
+                self.z[other_z[m][0]] -= 1
             self.K -= 1
 
         # update partition
         self.partition = self.Util.z2partition(self.z, self.K)
-        if self.Util.show_MM:
-            self.show_mixture_model()
 
         # uptate the unchanged pattern parameters
         # TODO check whether can be parallel processed
@@ -167,6 +176,9 @@ class MixtureModel(object):
             self.b[k].sigmax = sigmax
             self.b[k].sigmay = sigmay
             self.b[k].sigman = sigman
+
+        if self.Util.show_MM:
+            self.show_mixture_model()
 
     def assignment_posterior(self, i):
         # calculate the posterior distribuion of zi
@@ -204,9 +216,12 @@ class MixtureModel(object):
         # calculate the posterior PDF of log_pzik_prior
         partition_without_i = self.partition.copy()
         partition_without_i[self.z[i]] -= 1
-        log_pzik_prior = np.log(partition_without_i[k]/(self.n - 1 + self.alpha)) # TODO note this will be -inf
-        log_pzik_likelihood = self.log_likelihood_exit_pattern(i, k)
-        return log_pzik_prior + log_pzik_likelihood
+        if partition_without_i[k] == 0:
+            return float("-inf")
+        else:
+            log_pzik_prior = np.log(partition_without_i[k]/(self.n - 1 + self.alpha)) # TODO note this will be -inf
+            log_pzik_likelihood = self.log_likelihood_exit_pattern(i, k)
+            return log_pzik_prior + log_pzik_likelihood
 
     def log_likelihood_exit_pattern(self, i, k):
         # calculate the log likelihood of frame i under a given pattern k
@@ -232,7 +247,10 @@ class MixtureModel(object):
             near_frame = Frame(frame_ink.x[n_idx], frame_ink.y[n_idx], frame_ink.vx[n_idx], frame_ink.vy[n_idx])
             frame_i = self.frames[i]
             ux_pos, uy_pos, covx_pos, covy_pos, likelihood = self.b[k].GP_posterior(frame_i, near_frame)
-            return np.log(likelihood)
+            if likelihood == 0:
+                return float("-inf")
+            else:
+                return np.log(likelihood)
 
     def frame_ink(self, k, i, all_frame=False):
         # frame ink stores all the data in kth pattern except the ith frame

@@ -37,7 +37,7 @@ class MotionPattern(object):
         return self
 
     def update_para_sample(self, frames):
-        x = np.linspace(1,51,1)
+        x = np.linspace(1, 51, 51)
         WX = np.meshgrid(x)
         WX = np.reshape(WX, (-1, 1))
         WY = WX
@@ -53,7 +53,7 @@ class MotionPattern(object):
             log_PWXWY_likelihood[i] = np.log(self.GP_prior(frames))
         # posterior
         log_PWXWY_post = log_PWXWY_prior + log_PWXWY_likelihood
-        log_PWXWY_post = log_PWXWY_post - max(log_PWXWY_post) # why - max
+        log_PWXWY_post = log_PWXWY_post - max(log_PWXWY_post) # normalization
         PWXWY_post = np.exp(log_PWXWY_post)
         # resample based on posterior prob
         candidate = np.linspace(0, len(PWXWY_post)-1, len(PWXWY_post))
@@ -72,14 +72,6 @@ class MotionPattern(object):
         # pattern. x,y are column vectors
         X2, X1 = np.meshgrid(x2, x1)
         Y2, Y1 = np.meshgrid(y2, y1)
-
-        # Change to meshgrid instead of using repmat
-        # m = len(x1)
-        # n = len(x2)
-        # X1 = np.matlib.repmat(x1,1,n)
-        # Y1 = np.matlib.repmat(y1,1,n)
-        # X2 = np.matlib.repmat(np.transpose(x2), m, 1)
-        # Y2 = np.matlib.repmat(np.transpose(y2), m, 1)
 
         disMat = -(X1-X2)**2/(2*self.wx**2) - (Y1-Y2)**2/(2*self.wy**2)
         if bnoise:
@@ -118,8 +110,8 @@ class MotionPattern(object):
         # eig2 = np.linalg.det(covy_pos)
         s1, v = scipy.linalg.eigh(covx_pos)
         s2, v = scipy.linalg.eigh(covy_pos)
-        if min(s1) < -np.finfo(float).eps and min(s2) < -np.finfo(float).eps:
-            print('singular cov')
+        if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
+            print('non positive semi-definite')
             likelihood = 0
             return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
         else:
@@ -132,6 +124,7 @@ class MotionPattern(object):
             return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
 
     def norm_pdf_multivariate(self, x, mu, sigma):
+        # TODO need to check whether this is correct
         size = len(x)
         if size == len(mu) and (size, size) == sigma.shape:
             det = np.linalg.det(sigma)
@@ -145,7 +138,8 @@ class MotionPattern(object):
             inner = np.dot(x_mu, inv)
             outer = np.dot(inner, np.transpose(x_mu))
             result = math.pow(math.e, -0.5 * outer)
-            return norm_const * result
+            final = norm_const * result
+            return final
         else:
             raise NameError("The dimensions of the input don't match")
 
@@ -166,8 +160,8 @@ class MotionPattern(object):
         # eig2 = np.linalg.det(covy)
         s1, v = scipy.linalg.eigh(covx)
         s2, v = scipy.linalg.eigh(covy)
-        if min(s1) < -np.finfo(float).eps and min(s2) < -np.finfo(float).eps:
-            print('singular cov')
+        if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
+            print('cannot be PSD')
             likelihood = 0
             return likelihood
         else:

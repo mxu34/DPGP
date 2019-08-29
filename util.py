@@ -20,10 +20,13 @@ class Util(object):
         self.alpha_MAE = False # sample
         self.show_MM = True
         self.max_obj_update = 200
-        self.alpha_sample_size = 300
-        self.alpha_sample = True
+        self.alpha_sample_size = 200
+        self.alpha_sample = False
         self.sigman = 0.2
         self.alpha_max = 20
+        self.alpha_min = 0.001
+        self.alpha_initial_sample = True
+        self.alpha_initial = 1
 
     def draw_w(self):
         wx = np.random.gamma(self.gammaShape, self.gammaScale)
