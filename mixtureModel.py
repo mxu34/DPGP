@@ -1,32 +1,27 @@
 #!usr/bin/env python3
 
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy
 from scipy.stats import gamma
-from frame import Frame
 from MotionPattern import MotionPattern
 from util import Util
 import multiprocessing as mp
 from functools import partial
 from frame import Frame
 from sklearn.neighbors import NearestNeighbors
-from scipy.special import gamma, loggamma
+from scipy.special import gamma
 from scipy.stats import invgamma
+
+#
 
 
 class MixtureModel(object):
     def __init__(self, frames):
-        # note the gamma initialization is in util
-        # self.gammaShape = 0.0
-        # self.gammaScale = 2.0
-
-        self.b = []  # Motion Patterns
-        self.z = []  # Assignments
-        self.K = None  # Number of Motion Patterns
+        self.b = []  # Motion Patterns, list
+        self.z = []  # Assignments , list
+        self.K = None  # Number of Motion Patterns, scalar
         self.n = None  # number of Data Points
-        self.alpha = None  # concentration factor
-        self.partition = []  # number of frames in each cluster
+        self.alpha = None  # concentration parameter
+        self.partition = []  # number of frames in each cluster, list
         self.parameterIteration = None  # Iteration of Gibbs Sampling
         self.assignmentIteration = None  # Iteration of Gibbs Sampling
         self.Util = Util()
@@ -35,17 +30,15 @@ class MixtureModel(object):
     def mixture_model(self):
         self.assignmentIteration = 0
         self.parameterIteration = 0
-        # draw patterns one by one
         if self.Util.alpha_initial_sample:
-            # concentration parameter prior: inverse gamma function
+            # concentration parameter prior: inverse gamma function with scale parameter: 1
             self.alpha = invgamma.rvs(a=1, size=1)
         else:
             self.alpha = self.Util.alpha_initial
         self.n = 1
         self.K = 1
         self.z.append(0)
-        # draw a new pattern
-        # TODO: pwx pwy not used here
+        # draw a new pattern for the first frame
         wx, wy, pwx, pwy = self.Util.draw_w()
         frame_fist = []
         frame_fist.append(self.frames[0])
@@ -55,30 +48,37 @@ class MixtureModel(object):
         self.b.append(pattern_0)
         # update partition
         self.partition = self.Util.z2partition(self.z, self.K)
-        # now from the second frame
+
+        # from the second frame, do update assignment
         for i in range(1, len(self.frames)):
             self.n = i + 1
-            self.z.append(0) # first assign the new frame to a new cluster
+            # first assign unseen frame to cluster 0
+            self.z.append(0)
+            # update assignment of frame i
             self.update_assignment(i)
             print('Initializing Frame: ', i, 'total frames: ', len(self.frames))
 
     def update_all_pattern(self):
-        # update each motion pattern, wx and wz
+        # update parameter of each motion pattern
         frame_ink_prep = [None] * self.K
         b_prep = [None] * self.K
         for k in range(self.K):
             frame_ink_prep[k] = self.frame_ink(k, 0, True)
             b_prep[k] = self.b[k]
-        pool = mp.Pool(mp.cpu_count()) # TODO whether can simplify defining pool
+        # update patterns in parallel processing style
+        pool = mp.Pool(mp.cpu_count())
         b_prep = [pool.apply(self.update_one_pattern, args=(frame_ink_prep[k], b_prep[k]))
                   for k in range(self.K)]
         pool.close()
         for k in range(self.K):
             self.b[k] = b_prep[k]
+
+        # update concentration parameter
         self.draw_alpha()
         self.parameterIteration += 1
 
     def update_one_pattern(self, frame_ink_k, b_prep_k):
+        # extract frames from one pattern and recalculate the pattern parameters
         frame_ink = frame_ink_k
         if len(frame_ink.x) > self.Util.max_obj_update:
             idx = np.random.randint(len(frame_ink.x), size=self.Util.max_obj_update)
@@ -87,13 +87,15 @@ class MixtureModel(object):
         return b_prep_k
 
     def draw_alpha(self):
-        # note that this part contains a lot of pre-defined parameters.
+        # note that this part contains a lot of pre-defined parameters stored in Util.
         logp = []
+        # update alpha in parallel processing style
         pool = mp.Pool(mp.cpu_count())
         candidate = np.linspace(self.Util.alpha_min, self.Util.alpha_max, self.Util.alpha_sample_size)
         logp = pool.map(self.p_alpha, (c for c in candidate))
         pool.close()
-        logp = logp - np.max(logp) # normalization
+        # normalization
+        logp = logp - np.max(logp)
         if self.Util.alpha_sample:
             p = np.exp(logp)
             self.alpha = np.random.choice(candidate, 1, p)
@@ -105,12 +107,13 @@ class MixtureModel(object):
 
     def p_alpha(self, alpha):
         # log of the parameter posterior
-        # NOte that the last term is not related to alpha, may help a bit to avoid inf
+        # Note that the last term is not related to alpha, may help a bit to avoid inf
         p = np.log(alpha)*(self.K - 1.5) - 0.5 / alpha + np.log(gamma(alpha)/gamma(self.n+alpha)) \
             + np.sum(np.log(gamma(np.array(self.partition))))
         return p
 
     def update_all_assignment(self):
+        # update assignments for all frames
         for i in range(self.n):
             self.update_assignment(i)
         self.assignmentIteration += 1
@@ -118,19 +121,20 @@ class MixtureModel(object):
     def update_assignment(self, i):
         print('updating assignment: ', i)
         zi_old = self.z[i]
+        # posterior probability of frame i belongs to each pattern
         log_pzik_post = self.assignment_posterior(i)
-        # resample zi
+
+        # reassign zi
         if self.Util.assignment_MAE:
             self.z[i] = np.argmax(log_pzik_post)
-            if self.z[i] != zi_old:
-                pass
         else:
+            # not fully check here
             log_pzik_post = log_pzik_post - np.max(log_pzik_post)
             pzik_post = np.exp(log_pzik_post)
             pzik_post = pzik_post/np.sum(pzik_post)
             candidate = np.linspace(0, self.K, self.K+1)
             self.z[i] = np.random.choice(candidate, 1, pzik_post)
-        # after update zi
+
         # if zi = K+1, draw a new pattern
         if self.z[i] == self.K:
             print('update k and b')
@@ -138,19 +142,15 @@ class MixtureModel(object):
             # unlike the existing motion pattern, the parameter of
             # the new patterns are updated once generated
             self.b.append(new_pattern.update_para(self.frames[i]))
-            # print(len(self.b))
-            # print(self.b[1].ux)
             self.K += 1
 
         # if b(zi_old) is empty after the frame_i left
         all_z = set(self.z)
         if not zi_old in all_z:
-            # TODO check whether this will happen
             print('***********************************')
             print('delete pattern: ', zi_old)
             print('***********************************')
             # if is empty, delete the pattern
-            # TODO check how the pattern will be refilled
             del self.b[zi_old]
             other_z = np.argwhere(np.array(self.z) > zi_old).astype(int)
             for m in range(len(other_z)):
@@ -161,7 +161,7 @@ class MixtureModel(object):
         self.partition = self.Util.z2partition(self.z, self.K)
 
         # uptate the unchanged pattern parameters
-        # TODO check whether can be parallel processed
+        # TODO structure improvement: parallel processing
         for k in range(self.K):
             idx = np.where(np.array(self.z) == k)
             idx = np.asarray(idx)
@@ -183,17 +183,18 @@ class MixtureModel(object):
     def assignment_posterior(self, i):
         # calculate the posterior distribuion of zi
         # calculate the PMF vector
-        # log_pzik_post = np.zeros((self.K+1, 1))
+
         # for existing patterns
-        # TODO check: parallel processing
         pool = mp.Pool(mp.cpu_count())
         log_post_i = partial(self.log_posterior_exist_pattern, i=i)
         log_pzik_post = pool.map(log_post_i, (k for k in range(self.K)))
         pool.close()
+        # for unseen patterns
         log_pzik_post.append(self.log_posterior_unseen_pattern(i))
         return log_pzik_post
 
     def log_posterior_unseen_pattern(self, i):
+        # calculate the posterior given
         # prior
         log_pzik_new_prior = np.log(self.alpha/(self.n - 1 + self.alpha))
         # likelihood : the MCMC integration

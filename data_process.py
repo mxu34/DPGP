@@ -8,15 +8,15 @@ from frame import Frame
 import pickle
 
 
-# source data file header
-# [lidar_time_stamp frame_idx track_id label_class x y z vel_x vel_y]
+
 # Unique object type
 # 'VEHICLE' 'LARGE_VEHICLE' 'ON_ROAD_OBSTACLE' 'TRAILER' 'PEDESTRIAN'
 #  'BICYCLE' 'BICYCLIST'
 
-
+# map range with highest traffic density
 map_range = np.array([[2570, 2600, 1180, 1210], [2640, 2670, 1240, 1270]])
 area_idx = 0
+
 data_path = '/home/mengdi/Dropbox/Research/Mobility21/Mobility21/train4/'
 
 file_names = os.listdir(data_path)
@@ -32,8 +32,6 @@ for i in range(len(file_names)):
     data_range = data_range[data_range['x'] <= map_range[area_idx, 1]]
     data_range = data_range[data_range['y'] >= map_range[area_idx, 2]]
     data_range = data_range[data_range['y'] <= map_range[area_idx, 3]]
-
-    # print('last one', data_range.shape[0])
 
     # load data file into
     if data_range.shape[0] != 0:

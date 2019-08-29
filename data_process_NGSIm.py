@@ -8,8 +8,12 @@ from frame import Frame
 import pickle
 
 
-# source data file header
-# [frame_idx x y vel_x vel_y]
+# Preprocess NGSIM dataset into frames
+# Structure of NGSIM source data
+# data_path
+# -- log_name.txt
+# -- -- [frame_idx x y vel_x vel_y]
+
 data_path = '/home/mengdi/Dropbox/Research/Mobility21/DPGP/DPGP_Mobility21/DPGP_Uber/frameUS-101.txt'
 
 data_range = pd.read_csv(data_path, sep="\t", index_col=False)
