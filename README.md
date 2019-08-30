@@ -1,33 +1,27 @@
-# DPGP
-Paper Reference:
-Modeling Multi-Vehicle Interaction Scenarios Using Gaussian Random Field
+# DPGP for MUlti-Vehicle Interaction Scenario Extraction
+The implementation of using Gaussian Process to represent multi-vehicle driving scenarios with Dirichlet Process adapting cluster numbers. <br>
+The python version code is implemented by Mengdi Xu, mengdixu@andrew.cmu.edu @SafeAI lab in CMU. <br>
+Initial MATLAB code implemented by Yaohui Guo and Vinay Varma Kalidindi. <br>
+
+### Paper Reference:
+Modeling Multi-Vehicle Interaction Scenarios Using Gaussian Random Field <br>
 https://arxiv.org/pdf/1906.10307.pdf
--------------------------------------------------
-The python version code is implemented by Mengdi Xu, mengdixu@andrew.cmu.edu @SafeAI lab in CMU.
 
 
-Initial MATLAB code by Yaohui Guo and Vinay Varma Kalidindi
--------------------------------------------------
+### Improvement:
+The python version code fixed several bugs in the MATLAB version of code. <br>
+The code structure is more clear and can easily be implemented for various applications. <br>
+Thanks members of SafeAI lab for discussion! <br>
 
 
+#### Input:
 
-Improvement:
+frames: list with element as object defined in frame.py <br>
 
-The python version code fixed several bugs in the MATLAB version of code.
+#### Output:
 
-The code structure is more clear and can easily be implemented for various applications.
+Mixture model as defined in mixtureModel.py <br>
 
-Thanks members of SafeAI lab for discussion!
 
--------------------------------------------------
-Input:
-
-frames: list with element as object defined in frame.py
-
-Output:
-
-Mixture model as defined in mixtureModel.py
-
--------------------------------------------------
-Prereq python packages:
+#### Required python packages:
 math, numpy, scipy, multiprocessing, functools, sklearn, pandas, pickle
