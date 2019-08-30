@@ -14,7 +14,7 @@ import pickle
 # -- log_name.txt
 # -- -- [frame_idx x y vel_x vel_y]
 
-data_path = '/home/mengdi/Dropbox/Research/Mobility21/DPGP/DPGP_Mobility21/DPGP_Uber/frameUS-101.txt'
+data_path = 'data_sample/frameUS-101.txt'
 
 data_range = pd.read_csv(data_path, sep="\t", index_col=False)
 
@@ -29,7 +29,7 @@ if data_range.shape[0] != 0:
         frames.append(frame_temp)
         del frame_temp
 
-print(len(frames))
-print(frames[0].x.shape)
-with open("frame_US_101_200", "wb") as fb:
+print('number of frames', len(frames))
+# print(frames[0].x.shape)
+with open("data_sample/frame_US_101_200", "wb") as fb:
     pickle.dump(frames, fb)

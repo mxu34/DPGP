@@ -1,17 +1,20 @@
 #!usr/bin/env python3
 
 import numpy as np
-from scipy.stats import gamma
-from MotionPattern import MotionPattern
-from util import Util
 import multiprocessing as mp
 from functools import partial
-from frame import Frame
 from sklearn.neighbors import NearestNeighbors
-from scipy.special import gamma
-from scipy.stats import invgamma
+# from scipy.special import gamma
+from scipy.stats import gamma, invgamma
 
-#
+from frame import Frame
+from util import Util
+from MotionPattern import MotionPattern
+
+
+# MixtureModel is a class with functions to
+# a) update motion pattern represented by Gaussian Process
+# b) update non-parametric bayesian model represented by Dirichlet Process
 
 
 class MixtureModel(object):
@@ -42,12 +45,12 @@ class MixtureModel(object):
         wx, wy, pwx, pwy = self.Util.draw_w()
         frame_fist = []
         frame_fist.append(self.frames[0])
-        ux, uy, sigmax, sigmay, sigman = self.Util.cov_mean(frame_fist)
+        ux, uy, sigmax, sigmay, sigman = self.cov_mean(frame_fist)
         pattern_0 = MotionPattern(ux, uy, sigmax, sigmay, sigman, wx, wy)
         pattern_0.update_para(self.frames[0])
         self.b.append(pattern_0)
         # update partition
-        self.partition = self.Util.z2partition(self.z, self.K)
+        self.partition = self.z2partition(self.z, self.K)
 
         # from the second frame, do update assignment
         for i in range(1, len(self.frames)):
@@ -86,6 +89,15 @@ class MixtureModel(object):
         b_prep_k = b_prep_k.update_para(frame_ink)
         return b_prep_k
 
+    def draw_new_pattern(self):
+        # draw a new motion pattern from the current mixture model
+        # p_pattern is the prob of this model
+        wx, wy, pwx, pwy = self.Util.draw_w()
+        new_pattern = MotionPattern(self.b[0].ux, self.b[0].uy, self.b[0].sigmax,
+                                    self.b[0].sigmay, self.b[0].sigman, wx, wy)
+        p_pattern = pwx * pwy
+        return new_pattern, p_pattern
+
     def draw_alpha(self):
         # note that this part contains a lot of pre-defined parameters stored in Util.
         logp = []
@@ -96,14 +108,14 @@ class MixtureModel(object):
         pool.close()
         # normalization
         logp = logp - np.max(logp)
-        if self.Util.alpha_sample:
-            p = np.exp(logp)
-            self.alpha = np.random.choice(candidate, 1, p)
-        else:
+        if self.Util.alpha_MAP:
             idx = np.argmax(logp)
             self.alpha = candidate[idx]
             print('max idx', idx)
             print('alpha', self.alpha)
+        else:
+            p = np.exp(logp)
+            self.alpha = np.random.choice(candidate, 1, p)
 
     def p_alpha(self, alpha):
         # log of the parameter posterior
@@ -125,7 +137,7 @@ class MixtureModel(object):
         log_pzik_post = self.assignment_posterior(i)
 
         # reassign zi
-        if self.Util.assignment_MAE:
+        if self.Util.assignment_MAP:
             self.z[i] = np.argmax(log_pzik_post)
         else:
             # not fully check here
@@ -158,9 +170,9 @@ class MixtureModel(object):
             self.K -= 1
 
         # update partition
-        self.partition = self.Util.z2partition(self.z, self.K)
+        self.partition = self.z2partition(self.z, self.K)
 
-        # uptate the unchanged pattern parameters
+        # update the unchanged pattern parameters
         # TODO structure improvement: parallel processing
         for k in range(self.K):
             idx = np.where(np.array(self.z) == k)
@@ -169,7 +181,7 @@ class MixtureModel(object):
             list_f = []
             for idx_iter in range(len(idx)):
                 list_f.append(self.frames[idx[idx_iter]])
-            ux, uy, sigmax, sigmay, sigman = self.Util.cov_mean(frames=list_f)
+            ux, uy, sigmax, sigmay, sigman = self.cov_mean(frames=list_f)
 
             self.b[k].ux = ux
             self.b[k].uy = uy
@@ -194,7 +206,7 @@ class MixtureModel(object):
         return log_pzik_post
 
     def log_posterior_unseen_pattern(self, i):
-        # calculate the posterior given
+        # calculate the posterior given frames and parameters of each pattern
         # prior
         log_pzik_new_prior = np.log(self.alpha/(self.n - 1 + self.alpha))
         # likelihood : the MCMC integration
@@ -205,7 +217,7 @@ class MixtureModel(object):
         # use MC to calculate the integration
         temp_sum = 0
         frame_i = self.frames[i]
-        # TODO can be paralleled
+        # TODO: check whether can be paralleled
         for i in range(self.Util.mc_iteration):
             new_pattern, p_pattern = self.draw_new_pattern()
             likelihood = new_pattern.GP_prior(frame_i)
@@ -220,7 +232,8 @@ class MixtureModel(object):
         if partition_without_i[k] == 0:
             return float("-inf")
         else:
-            log_pzik_prior = np.log(partition_without_i[k]/(self.n - 1 + self.alpha)) # TODO note this will be -inf
+            # when p near 0, log will be -inf which arises error
+            log_pzik_prior = np.log(partition_without_i[k]/(self.n - 1 + self.alpha))
             log_pzik_likelihood = self.log_likelihood_exit_pattern(i, k)
             return log_pzik_prior + log_pzik_likelihood
 
@@ -228,16 +241,12 @@ class MixtureModel(object):
         # calculate the log likelihood of frame i under a given pattern k
         # check if frame i is the only frame in bk
         if self.z[i] == k and self.partition[k] == 1:
-            # TODO check : self.function may not work
-
             log_pzik_likelihood = np.log(self.b[k].GP_prior(self.frames[i]))
             return log_pzik_likelihood
         else:
             frame_ink = self.frame_ink(k, i)
-            # here we approximate the likelihood from the GP field
-            # generated by the N_nbr_max nearest observations
-            # TODO: note that the ink is sorted by knn by N_nbr_num
-            # TODO: note the attention is aapplied by only considering nearest neighbors
+            # approximate the likelihood from the GP field generated by the N_nbr_max nearest observations
+            # the attention is applied here by only considering maximum N_nbr_num nearest neighbors
             n_nbr = np.min([self.Util.N_nbr_num, len(frame_ink.x)])
             points = np.vstack((frame_ink.x, frame_ink.y)).T
             knn = NearestNeighbors(n_neighbors=n_nbr, p=1)
@@ -258,30 +267,49 @@ class MixtureModel(object):
         idx = np.where(np.array(self.z) == k)
         idx = np.asarray(idx)
         Idx = idx[0].astype(int)
-        # TODO check whether i exit
+        # check whether i exit
         if not all_frame:
             Idx = Idx[Idx != i]
         frame_list = []
         for idx_iter in range(len(Idx)):
             frame_list.append(self.frames[Idx[idx_iter]])
         # get all concatenation
-        frames_i = self.Util.combined_frame(frame_list)
+        frames_i = self.combined_frame(frame_list)
         return frames_i
-
-    def draw_new_pattern(self):
-        # draw a new motion pattern from the current mixture model
-        # pPattern is the pdf of this model
-        wx, wy, pwx, pwy = self.Util.draw_w()
-        # print('draw new pattern', self.b[0].ux)
-        new_pattern = MotionPattern(self.b[0].ux, self.b[0].uy, self.b[0].sigmax,
-                                    self.b[0].sigmay, self.b[0].sigman, wx, wy)
-        p_pattern = pwx * pwy
-        # print('draw new pattern', new_pattern.ux)
-        return new_pattern, p_pattern
 
     def show_mixture_model(self):
         print('alpha: ', self.alpha, ' n: ', self.n, ' K: ', self.K)
         print('assignmentIter: ', self.assignmentIteration, ' paraIter: ', self.parameterIteration)
         print('----------------------------')
 
+    def cov_mean(self, frames):
+        # input: frames
+        # output: mean and covariance of the combined frame
+        combinedframes = self.combined_frame(frames)
+        ux = np.mean(combinedframes.vx)
+        uy = np.mean(combinedframes.vy)
+        sigmax = np.std(combinedframes.vx)
+        sigmay = np.std(combinedframes.vy)
+        return ux, uy, sigmax, sigmay, self.Util.sigman
 
+    @staticmethod
+    def z2partition(z, k):
+        # convert assignment z to partition
+        partition = [0] * k
+        for i in range(len(z)):
+            partition[z[i]] += 1
+        return partition
+
+    @staticmethod
+    def combined_frame(frames):
+        # combine all input frames to a single unified frame
+        x_ink = y_ink = vx_ink = vy_ink = []
+        if len(frames) == 1:
+            return frames[0]
+        else:
+            for i in range(len(frames)):
+                x_ink = np.concatenate((x_ink, frames[i].x), axis=0)
+                y_ink = np.concatenate((y_ink, frames[i].y), axis=0)
+                vx_ink = np.concatenate((vx_ink, frames[i].vx), axis=0)
+                vy_ink = np.concatenate((vy_ink, frames[i].vy), axis=0)
+            return Frame(x_ink, y_ink, vx_ink, vy_ink)

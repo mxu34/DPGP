@@ -1,14 +1,17 @@
 #!usr/bin/env python3
 
 import matplotlib.pyplot as plt
-import numpy as np
 import scipy
-from util import Util
-from scipy.stats import gamma
-from scipy.stats import multivariate_normal
-import numpy.matlib
-from numpy.linalg import inv
 import math
+import numpy as np
+from scipy.stats import gamma, multivariate_normal
+from numpy.linalg import inv
+
+from util import Util
+
+# MotionPattern is a class with functions to
+# a) initialize motion pattern represented by Gaussian Process
+# b) update motion pattern ux, uy, wx and wy
 
 
 class MotionPattern(object):
@@ -37,6 +40,7 @@ class MotionPattern(object):
         return self
 
     def update_para_sample(self, frames):
+        # update kernel parameters wx and wy
         x = np.linspace(1, 51, 51)
         WX = np.meshgrid(x)
         WX = np.reshape(WX, (-1, 1))
@@ -61,15 +65,20 @@ class MotionPattern(object):
         # uptate wx wy
         self.wy = WY[int(idx)]
         self.wx = WX[int(idx)]
-        print(self.wx)
+        # print(self.wx)
 
     def update_para_MLE(self, frames):
-        # not used in algorithm
+        # not used in algorithm, will be implemented later
         pass
 
     def squared_exp_cov(self, x1, y1, x2, y2, bnoise):
-        # calculate the covariance matrix given location data and motion
-        # pattern. x,y are column vectors
+        # calculate the covariance matrix given location data and motion pattern.
+        # kernel function:
+        # k(x, x*) = sigmax^2*exp(-(x - x*)^2/(2*wx^2) - (y - y*)^2/(2*wy^2))
+        # k(y, y*) = sigmay^2*exp(-(x - x*)^2/(2*wx^2) - (y - y*)^2/(2*wy^2))
+        # input: x1,y1 in R^(nx1), x2,y2 in R(mx1)
+        # output: xK in R^(nxn), yK in R(nxn) are both PSD
+
         X2, X1 = np.meshgrid(x2, x1)
         Y2, Y1 = np.meshgrid(y2, y1)
 
@@ -87,7 +96,7 @@ class MotionPattern(object):
         # given data.
         # x,y: frame testing (with *)
         # X,Y: frame training(no *)
-        # TODO check why bnoise is true and false
+
         xKXYXY, yKXYXY = self.squared_exp_cov(frame_train.x, frame_train.y, frame_train.x, frame_train.y, True)
         xKxyxy, yKxyxy = self.squared_exp_cov(frame_test.x, frame_test.y, frame_test.x, frame_test.y, False)
         xKxyXY, yKxyXY = self.squared_exp_cov(frame_test.x, frame_test.y, frame_train.x, frame_train.y, False)
@@ -111,7 +120,7 @@ class MotionPattern(object):
         s1, v = scipy.linalg.eigh(covx_pos)
         s2, v = scipy.linalg.eigh(covy_pos)
         if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
-            print('non positive semi-definite')
+            print('covariance matrix should be PSD')
             likelihood = 0
             return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
         else:
@@ -124,7 +133,10 @@ class MotionPattern(object):
             return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
 
     def norm_pdf_multivariate(self, x, mu, sigma):
-        # TODO need to check whether this is correct
+        # Self implemented multivariate normal distribution
+        # input: x, querry array; mu, mean; sigma: PSD covariance function
+        # output: prob of draw x from the distribution
+
         size = len(x)
         if size == len(mu) and (size, size) == sigma.shape:
             det = np.linalg.det(sigma)
@@ -146,11 +158,7 @@ class MotionPattern(object):
     def GP_prior(self, framesTest):
         # calculate the likelihood of a testing frame under a GP
         # without observing any data
-        # TODO check whether bnoise should always be False
-        # print(framesTest.x.dtype)
-        # framesTest.x = np.asarray(framesTest.x).astype('float32')
-        # framesTest.y = np.asarray(framesTest.y).astype('float32')
-        # print(framesTest.x.dtype)
+
         covx, covy = self.squared_exp_cov(framesTest.x, framesTest.y, framesTest.x, framesTest.y, False)
         covx = (covx + np.transpose(covx)) / 2.0 + self.Util.eip_prior * np.eye(covx.shape[0], covx.shape[1])
         covy = (covy + np.transpose(covy)) / 2.0 + self.Util.eip_prior * np.eye(covy.shape[0], covy.shape[1])
@@ -161,7 +169,7 @@ class MotionPattern(object):
         s1, v = scipy.linalg.eigh(covx)
         s2, v = scipy.linalg.eigh(covy)
         if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
-            print('cannot be PSD')
+            print('covariance matrix should be PSD')
             likelihood = 0
             return likelihood
         else:
