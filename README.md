@@ -25,10 +25,10 @@ Mixture model as defined in mixtureModel.py <br>
 
 
 #### Required python packages:
-numpy == 1.16.4
-scipy == 1.3.1
-scikit-learn == 0.21.2 
-pandas == 0.25.0
+numpy == 1.16.4 <br>
+scipy == 1.3.1 <br>
+scikit-learn == 0.21.2 <br>
+pandas == 0.25.0 <br>
 <math 
 multiprocessing
 functools
