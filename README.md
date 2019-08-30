@@ -1,4 +1,4 @@
-# DPGP for MUlti-Vehicle Interaction Scenario Extraction
+# DPGP for Multi-Vehicle Interaction Scenario Extraction
 This repo provides the python implementation of DPGP algorithm using Gaussian Process to represent multi-vehicle driving scenarios with Dirichlet Process adapting cluster numbers. <br>
 The python version code is implemented by Mengdi Xu, mengdixu@andrew.cmu.edu @SafeAI lab in CMU. <br>
 Initial MATLAB code implemented by Yaohui Guo and Vinay Varma Kalidindi. <br>
