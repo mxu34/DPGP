@@ -24,7 +24,8 @@ frames: list with element as object defined in frame.py <br>
 Mixture model as defined in mixtureModel.py <br>
 
 #### Implement:
-python main.py
+Train DPGP: python main.py
+Visualization: python pattern_vis.py
 
 #### Required python packages:
 numpy         == 1.16.4 <br>
