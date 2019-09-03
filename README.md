@@ -23,6 +23,8 @@ frames: list with element as object defined in frame.py <br>
 
 Mixture model as defined in mixtureModel.py <br>
 
+#### Implement:
+python main.py
 
 #### Required python packages:
 numpy         == 1.16.4 <br>
