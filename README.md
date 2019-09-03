@@ -28,7 +28,7 @@ Train DPGP: python main.py <br>
 Visualization: python pattern_vis.py
 
 #### Required python packages:
-argoverse (for lane visualizaiton)
+argoverse (for lane visualizaiton) <br>
 numpy         == 1.16.4 <br>
 scipy         == 1.3.1 <br>
 scikit-learn  == 0.21.2 <br>
