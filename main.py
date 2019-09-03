@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import pickle
 from mixtureModel import MixtureModel
+import time
+
 
 # Main script for DP-GP
 # The python version code is implemented by Mengdi Xu, mengdixu@andrew.cmu.edu @SafeAI lab in CMU.
@@ -23,17 +25,15 @@ from mixtureModel import MixtureModel
 # Mixture model as defined in mixtureModel.py
 
 
+start_time = time.time()
 # dataset = 'NGSIM'
 dataset = 'ARGO'
 
 if dataset == 'ARGO':
     # if reinitialize the mixture model
-    # with open("data_sample/frame_map_range_0_argo", "rb") as np:
-    #     load_frames = pickle.load(np)
-
     with open("data_sample/frame_map_range_0_argo_train4", "rb") as np:
         load_frames = pickle.load(np)
-    del load_frames[-1]
+    # del load_frames[-1]
 
     a = MixtureModel(load_frames)
     a.mixture_model()
@@ -43,10 +43,11 @@ if dataset == 'ARGO':
         pickle.dump(a, fb)
 
     # # load the saved mixture model
-    # with open("data_sample/a_mixture_model_ARGO", "rb") as np:
+    # with open("data_sample/a_mixture_model_ARGO_train4", "rb") as np:
     #     a = pickle.load(np)
 
 elif dataset == 'NGSIM':
+
     # if reinitialize the mixture model
     with open("data_sample/frame_US_101_200", "rb") as np: # load saved frames
         load_frames = pickle.load(np)
@@ -79,3 +80,4 @@ else:
         pickle.dump(a, fb)
 
 print('DPGP finished!!')
+print("--------------- %s ----------------" % (time.time() - start_time))
