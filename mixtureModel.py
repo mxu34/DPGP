@@ -4,8 +4,8 @@ import numpy as np
 import multiprocessing as mp
 from functools import partial
 from sklearn.neighbors import NearestNeighbors
-# from scipy.special import gamma
-from scipy.stats import gamma, invgamma
+from scipy.special import gamma
+from scipy.stats import invgamma
 
 from frame import Frame
 from util import Util
@@ -120,8 +120,12 @@ class MixtureModel(object):
     def p_alpha(self, alpha):
         # log of the parameter posterior
         # Note that the last term is not related to alpha, may help a bit to avoid inf
-        p = np.log(alpha)*(self.K - 1.5) - 0.5 / alpha + np.log(gamma(alpha)/gamma(self.n+alpha)) \
-            + np.sum(np.log(gamma(np.array(self.partition))))
+        t1 = np.log(alpha)*(self.K - 1.5)
+        t2 = - 0.5/alpha
+        t3 = np.log(gamma(alpha)) - np.log(gamma(self.n+alpha))
+        t4 = np.sum(np.log(gamma(np.array(self.partition))))
+        p = t1 + t2 + t3 + t4
+        # p = np.log(alpha)*(self.K - 1.5) - 0.5/alpha + np.log(gamma(alpha)/gamma(self.n+alpha)) + np.sum(np.log(gamma(np.array(self.partition))))
         return p
 
     def update_all_assignment(self):

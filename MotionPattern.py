@@ -42,9 +42,9 @@ class MotionPattern(object):
     def update_para_sample(self, frames):
         # update kernel parameters wx and wy
         x = np.linspace(1, 51, 51)
-        WX = np.meshgrid(x)
+        [WX,WY] = np.meshgrid(x, x)
         WX = np.reshape(WX, (-1, 1))
-        WY = WX
+        WY = np.reshape(WY, (-1, 1))
         # prior
         PWX = gamma.pdf(WX, a=self.Util.gammaShape, scale=self.Util.gammaScale)
         PWY = gamma.pdf(WY, a=self.Util.gammaShape, scale=self.Util.gammaScale)
@@ -91,7 +91,7 @@ class MotionPattern(object):
             yK = self.sigmay**2 * np.exp(disMat)
         return xK, yK
 
-    def GP_posterior(self, frame_test, frame_train):
+    def GP_posterior(self, frame_test, frame_train, prediction=False):
         # calculate the likelihood of a frame under motion patter with
         # given data.
         # x,y: frame testing (with *)
@@ -119,18 +119,21 @@ class MotionPattern(object):
         # eig2 = np.linalg.det(covy_pos)
         s1, v = scipy.linalg.eigh(covx_pos)
         s2, v = scipy.linalg.eigh(covy_pos)
-        if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
-            print('covariance matrix should be PSD')
-            likelihood = 0
-            return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
+        if prediction:
+            return ux_pos, uy_pos, covx_pos, covy_pos
         else:
-            # print('yeah not singular cov_post')
-            temp1 = self.norm_pdf_multivariate(frame_test.vx, ux_pos, covx_pos)
-            temp2 = self.norm_pdf_multivariate(frame_test.vy, uy_pos, covy_pos)
-            # temp1 = multivariate_normal(frame_test.vx, ux_pos, covx_pos)
-            # temp2 = multivariate_normal(frame_test.vy, uy_pos, covy_pos)
-            likelihood = temp1 * temp2
-            return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
+            if min(s1) < -np.finfo(float).eps or min(s2) < -np.finfo(float).eps:
+                print('covariance matrix should be PSD')
+                likelihood = 0
+                return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
+            else:
+                # print('yeah not singular cov_post')
+                temp1 = self.norm_pdf_multivariate(frame_test.vx, ux_pos, covx_pos)
+                temp2 = self.norm_pdf_multivariate(frame_test.vy, uy_pos, covy_pos)
+                # temp1 = multivariate_normal(frame_test.vx, ux_pos, covx_pos)
+                # temp2 = multivariate_normal(frame_test.vy, uy_pos, covy_pos)
+                likelihood = temp1 * temp2
+                return ux_pos, uy_pos, covx_pos, covy_pos, likelihood
 
     def norm_pdf_multivariate(self, x, mu, sigma):
         # Self implemented multivariate normal distribution
