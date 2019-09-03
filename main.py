@@ -23,24 +23,28 @@ from mixtureModel import MixtureModel
 # Mixture model as defined in mixtureModel.py
 
 
-dataset = 'NGSIM'
-# dataset = 'ARGO'
+# dataset = 'NGSIM'
+dataset = 'ARGO'
 
 if dataset == 'ARGO':
     # if reinitialize the mixture model
-    with open("data_sample/map_range_0", "rb") as np:
+    # with open("data_sample/frame_map_range_0_argo", "rb") as np:
+    #     load_frames = pickle.load(np)
+
+    with open("data_sample/frame_map_range_0_argo_train4", "rb") as np:
         load_frames = pickle.load(np)
+    del load_frames[-1]
 
     a = MixtureModel(load_frames)
     a.mixture_model()
 
     # save the initialized mixture model
-    with open("data_sample/a_mixture_model", "wb") as fb:
+    with open("data_sample/a_mixture_model_ARGO_train4", "wb") as fb:
         pickle.dump(a, fb)
 
-    # load the saved mixture model
-    with open("a_mixture_model", "rb") as np:
-        a = pickle.load(np)
+    # # load the saved mixture model
+    # with open("data_sample/a_mixture_model_ARGO", "rb") as np:
+    #     a = pickle.load(np)
 
 elif dataset == 'NGSIM':
     # if reinitialize the mixture model
@@ -53,12 +57,13 @@ elif dataset == 'NGSIM':
     # save the initialized mixture model
     with open("data_sample/a_mixture_model_NGSIM_200", "wb") as fb:
         pickle.dump(a, fb)
+    print('direct loaf existing mixture model')
 
-#     # load the saved mixture model
-#     with open("a_mixture_model_NGSIM_200", "rb") as np:  # load saved mixture model
-#         a = pickle.load(np)
+    # load the saved mixture model
+    # with open("data_sample/a_mixture_model_NGSIM_200", "rb") as np:  # load saved mixture model
+    #     a = pickle.load(np)
 
-for iter in range(2): # Gibbs Sampling Iterations
+for iter in range(3): # Gibbs Sampling Iterations
     # update each frame's indicator/assignment
     a.update_all_assignment()
     # update gaussian process patterns
@@ -66,7 +71,11 @@ for iter in range(2): # Gibbs Sampling Iterations
     # show number of mixtures
     a.show_mixture_model()
 
-with open("NGSIM_200_final_DPGP", "wb") as fb:
-    pickle.dump(a, fb)
+if dataset == 'ARGO':
+    with open("data_sample/ARGO_final_DPGP_train4_alpha_1", "wb") as fb:
+        pickle.dump(a, fb)
+else:
+    with open("data_sample/NGSIM_200_final_DPGP", "wb") as fb:
+        pickle.dump(a, fb)
 
 print('DPGP finished!!')
