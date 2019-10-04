@@ -12,8 +12,9 @@ plt.ion()
 if dataset == 'ARGO':
     map_range = np.array([[2570, 2600, 1180, 1210], [2640, 2670, 1240, 1270]])
 
-    with open("map_range_0_argo", "rb") as np:
-        load_frames = pickle.load(np)
+    with open("data_sample/ARGO_final_DPGP_train4_alpha_1", "rb") as np:
+        mixture_models = pickle.load(np)
+        load_frames = mixture_models.frames
 elif dataset == 'NGSIM':
     with open("frame_US_101", "rb") as np:  # load saved frames
         load_frames = pickle.load(np)
